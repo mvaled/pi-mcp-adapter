@@ -1,6 +1,6 @@
 {
   "name": "pi-mcp-adapter",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "MCP (Model Context Protocol) adapter extension for Pi coding agent",
   "type": "module",
   "license": "MIT",
@@ -9,7 +9,9 @@
     "pi-mcp-adapter": "./cli.js"
   },
   "scripts": {
-    "test": "node --import tsx --test *.test.ts"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "repository": {
     "type": "git",
@@ -35,27 +37,47 @@
   "files": [
     "cli.js",
     "index.ts",
+    "state.ts",
+    "utils.ts",
+    "tool-metadata.ts",
+    "init.ts",
+    "ui-session.ts",
+    "proxy-modes.ts",
+    "direct-tools.ts",
+    "commands.ts",
     "types.ts",
+    "ui-stream-types.ts",
     "config.ts",
     "server-manager.ts",
     "tool-registrar.ts",
     "resource-tools.ts",
     "lifecycle.ts",
     "metadata-cache.ts",
+    "host-html-template.ts",
+    "ui-resource-handler.ts",
+    "consent-manager.ts",
+    "ui-server.ts",
+    "glimpse-ui.ts",
     "npx-resolver.ts",
+    "oauth-handler.ts",
     "mcp-auth.ts",
     "mcp-oauth-provider.ts",
     "mcp-callback-server.ts",
     "mcp-auth-flow.ts",
     "mcp-panel.ts",
+    "logger.ts",
+    "errors.ts",
+    "app-bridge.bundle.js",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.2.2",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@sinclair/typebox": "^0.32.0",
-    "open": "^10.2.0"
+    "open": "^10.2.0",
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependencies": {
     "zod": "^3.25.0 || ^4.0.0"
@@ -66,6 +88,6 @@
     "@types/open": "^6.2.1",
     "tsx": "^4.21.0",
     "typescript": "^5.0.0",
-    "zod": "^3.25.0"
+    "vitest": "^3.0.0"
   }
 }

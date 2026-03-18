@@ -1,12 +1,21 @@
-// server-manager.ts - MCP connection management (stdio + HTTP)
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
-import type { McpTool, McpResource, ServerDefinition, Transport } from "./types.js";
-import { McpOAuthProvider } from "./mcp-oauth-provider.js";
+import type { ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  McpTool,
+  McpResource,
+  ServerDefinition,
+  ServerStreamResultPatchNotification,
+  Transport,
+} from "./types.js";
+import { serverStreamResultPatchNotificationSchema } from "./types.js";
+import { getStoredTokens } from "./oauth-handler.js";
 import { resolveNpxBinary } from "./npx-resolver.js";
+import { logger } from "./logger.js";
+import { McpOAuthProvider } from "./mcp-oauth-provider.js";
 import { supportsOAuth } from "./mcp-auth-flow.js";
 
 interface ServerConnection {
@@ -20,9 +29,12 @@ interface ServerConnection {
   status: "connected" | "closed" | "needs-auth";
 }
 
+type UiStreamListener = (serverName: string, notification: ServerStreamResultPatchNotification["params"]) => void;
+
 export class McpServerManager {
   private connections = new Map<string, ServerConnection>();
   private connectPromises = new Map<string, Promise<ServerConnection>>();
+  private uiStreamListeners = new Map<string, UiStreamListener>();
   private pendingAuthTransports = new Map<string, StreamableHTTPClientTransport | SSEClientTransport>();
   
   async connect(name: string, definition: ServerDefinition): Promise<ServerConnection> {
@@ -54,7 +66,7 @@ export class McpServerManager {
     name: string,
     definition: ServerDefinition
   ): Promise<ServerConnection> {
-    const client = new Client({ name: `pi-mcp-${name}`, version: "2.1.2" });
+    const client = new Client({ name: `pi-mcp-${name}`, version: "1.0.0" });
     
     let transport: Transport;
     
@@ -67,7 +79,7 @@ export class McpServerManager {
         if (resolved) {
           command = resolved.isJs ? "node" : resolved.binPath;
           args = resolved.isJs ? [resolved.binPath, ...resolved.extraArgs] : resolved.extraArgs;
-          console.log(`MCP: ${name} resolved to ${resolved.binPath} (skipping npm parent)`);
+          logger.debug(`${name} resolved to ${resolved.binPath} (skipping npm parent)`);
         }
       }
 
@@ -79,7 +91,7 @@ export class McpServerManager {
         stderr: definition.debug ? "inherit" : "ignore",
       });
     } else if (definition.url) {
-      // HTTP transport with OAuth support via SDK
+      // HTTP transport with fallback
       transport = await this.createHttpTransport(definition, name);
     } else {
       throw new Error(`Server ${name} has no command or url`);
@@ -87,6 +99,7 @@ export class McpServerManager {
     
     try {
       await client.connect(transport);
+      this.attachAdapterNotificationHandlers(name, client);
       
       // Clear any pending auth transport on successful connection
       this.pendingAuthTransports.delete(name);
@@ -295,6 +308,38 @@ export class McpServerManager {
       return [];
     }
   }
+
+  private attachAdapterNotificationHandlers(serverName: string, client: Client): void {
+    client.setNotificationHandler(serverStreamResultPatchNotificationSchema, (notification) => {
+      const listener = this.uiStreamListeners.get(notification.params.streamToken);
+      if (!listener) return;
+      listener(serverName, notification.params);
+    });
+  }
+
+  registerUiStreamListener(streamToken: string, listener: UiStreamListener): void {
+    this.uiStreamListeners.set(streamToken, listener);
+  }
+
+  removeUiStreamListener(streamToken: string): void {
+    this.uiStreamListeners.delete(streamToken);
+  }
+
+  async readResource(name: string, uri: string): Promise<ReadResourceResult> {
+    const connection = this.connections.get(name);
+    if (!connection || connection.status !== "connected") {
+      throw new Error(`Server "${name}" is not connected`);
+    }
+
+    try {
+      this.touch(name);
+      this.incrementInFlight(name);
+      return await connection.client.readResource({ uri });
+    } finally {
+      this.decrementInFlight(name);
+      this.touch(name);
+    }
+  }
   
   async close(name: string): Promise<void> {
     const connection = this.connections.get(name);
@@ -347,7 +392,7 @@ export class McpServerManager {
   isIdle(name: string, timeoutMs: number): boolean {
     const connection = this.connections.get(name);
     if (!connection || connection.status !== "connected") return false;
-    if (connection.inFlight && connection.inFlight > 0) return false;
+    if (connection.inFlight > 0) return false;
     return (Date.now() - connection.lastUsedAt) > timeoutMs;
   }
 }

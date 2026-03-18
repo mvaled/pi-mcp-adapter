@@ -315,7 +315,8 @@ export function supportsOAuth(definition: ServerEntry): boolean {
   if (!definition.url) return false
   
   // Explicitly disabled via auth: false or oauth: false
-  if (definition.auth === false || definition.oauth === false) return false
+  if (definition.auth === false) return false
+  if (definition.oauth === false) return false
   
   // OAuth is enabled if auth is 'oauth' or not specified (auto-detect)
   return definition.auth === "oauth" || definition.auth === undefined
