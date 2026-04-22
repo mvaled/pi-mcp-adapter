@@ -27,7 +27,7 @@ describe("commands onboarding", () => {
 
   beforeEach(() => {
     vi.resetModules();
-    mocks.createMcpPanel.mockReset().mockImplementation((_config, _cache, _prov, _callbacks, _tui, done) => {
+    mocks.createMcpPanel.mockReset().mockImplementation((_config, _cache, _prov, _callbacks, _tui, _keybindings, done) => {
       done({ cancelled: true, changes: new Map() });
       return { dispose() {} };
     });
@@ -46,7 +46,7 @@ describe("commands onboarding", () => {
     return {
       notify: vi.fn(),
       setStatus: vi.fn(),
-      custom: vi.fn((renderer: any) => renderer({ requestRender: vi.fn() }, {}, {}, vi.fn())),
+      custom: vi.fn((renderer: any) => renderer({ requestRender: vi.fn() }, {}, { getUserBindings: () => ({}) }, vi.fn())),
     };
   }
 
@@ -60,6 +60,7 @@ describe("commands onboarding", () => {
       manager: { getConnection: () => null },
       toolMetadata: new Map(),
       failureTracker: new Map(),
+      pausedServers: new Set(),
     } as any, { getFlag: () => undefined } as any, { hasUI: true, ui } as any);
 
     expect(mocks.createMcpSetupPanel).toHaveBeenCalled();
@@ -88,10 +89,11 @@ describe("commands onboarding", () => {
       manager: { getConnection: () => null },
       toolMetadata: new Map(),
       failureTracker: new Map(),
+      pausedServers: new Set(),
     } as any, { getFlag: () => undefined } as any, { hasUI: true, ui } as any);
 
     expect(mocks.createMcpPanel).toHaveBeenCalled();
-    const options = mocks.createMcpPanel.mock.calls[0]?.[6];
+    const options = mocks.createMcpPanel.mock.calls[0]?.[7];
     expect(options.noticeLines[0]).toContain("Using standard MCP config");
     expect(loadOnboardingState().sharedConfigHintShown).toBe(true);
   });

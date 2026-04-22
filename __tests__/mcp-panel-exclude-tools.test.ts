@@ -46,8 +46,12 @@ describe("mcp-panel excludeTools", () => {
         reconnect: async () => true,
         getConnectionStatus: () => "idle",
         refreshCacheAfterReconnect: () => null,
+        isPaused: () => false,
+        pause: async () => {},
+        resume: async () => {},
       },
       { requestRender: () => {} },
+      { getUserBindings: () => ({}) },
       () => {},
     );
 
