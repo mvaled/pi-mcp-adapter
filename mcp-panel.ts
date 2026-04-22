@@ -203,6 +203,15 @@ function fuzzyScore(query: string, text: string): number {
   return qi === lq.length ? score : 0;
 }
 
+function normalizeDescription(description: string | undefined | null): string {
+  if (!description) return "";
+  const cleaned = description
+    .replace(/[\t\r\n]+/g, " ")
+    .replace(/[\s\u00a0]+/g, " ")
+    .trim();
+  return cleaned;
+}
+
 function estimateTokens(tool: CachedTool): number {
   const schemaLen = JSON.stringify(tool.inputSchema ?? {}).length;
   const descLen = tool.description?.length ?? 0;
@@ -294,13 +303,15 @@ class McpPanel {
             continue;
           }
 
+          const sanitizedDescription = normalizeDescription(tool.description);
+          const estimatedTokens = estimateTokens({ ...tool, description: sanitizedDescription });
           const isDirect = toolFilter === true || (Array.isArray(toolFilter) && toolFilter.includes(tool.name));
           tools.push({
             name: tool.name,
-            description: tool.description ?? "",
+            description: sanitizedDescription,
             isDirect,
             wasDirect: isDirect,
-            estimatedTokens: estimateTokens(tool),
+            estimatedTokens,
           });
         }
         if (definition.exposeResources !== false) {
@@ -311,10 +322,11 @@ class McpPanel {
             }
 
             const isDirect = toolFilter === true || (Array.isArray(toolFilter) && toolFilter.includes(baseName));
-            const ct: CachedTool = { name: baseName, description: resource.description };
+            const sanitizedDescription = normalizeDescription(resource.description);
+            const ct: CachedTool = { name: baseName, description: sanitizedDescription };
             tools.push({
               name: baseName,
-              description: resource.description ?? `Read resource: ${resource.uri}`,
+              description: sanitizedDescription || `Read resource: ${resource.uri}`,
               isDirect,
               wasDirect: isDirect,
               estimatedTokens: estimateTokens(ct),
@@ -648,12 +660,14 @@ class McpPanel {
 
       const prev = existingState.get(tool.name);
       const isDirect = prev !== undefined ? prev : false;
+      const sanitizedDescription = normalizeDescription(tool.description);
+      const estimatedTokens = estimateTokens({ ...tool, description: sanitizedDescription });
       newTools.push({
         name: tool.name,
-        description: tool.description ?? "",
+        description: sanitizedDescription,
         isDirect,
         wasDirect: prev !== undefined ? server.tools.find((t) => t.name === tool.name)?.wasDirect ?? false : false,
-        estimatedTokens: estimateTokens(tool),
+        estimatedTokens,
       });
     }
 
@@ -666,10 +680,11 @@ class McpPanel {
 
         const prev = existingState.get(baseName);
         const isDirect = prev !== undefined ? prev : false;
-        const ct: CachedTool = { name: baseName, description: resource.description };
+        const sanitizedDescription = normalizeDescription(resource.description);
+        const ct: CachedTool = { name: baseName, description: sanitizedDescription };
         newTools.push({
           name: baseName,
-          description: resource.description ?? `Read resource: ${resource.uri}`,
+          description: sanitizedDescription || `Read resource: ${resource.uri}`,
           isDirect,
           wasDirect: prev !== undefined ? server.tools.find((t) => t.name === baseName)?.wasDirect ?? false : false,
           estimatedTokens: estimateTokens(ct),
